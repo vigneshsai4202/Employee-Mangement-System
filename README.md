@@ -301,7 +301,7 @@ Content-Type: application/json
 
 **1. Clone the repository**
 ```bash
-git clone https://github.com/your-username/employee-management-system.git
+git clone https://github.com/vigneshsai4202/Employee-Mangement-System.git
 cd employee-management-system
 ```
 
