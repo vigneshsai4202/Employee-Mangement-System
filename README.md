@@ -1,6 +1,6 @@
 # Employee Management System
 
-A production-style REST API built with Java 17, Spring Boot 3, and MySQL. Demonstrates layered architecture, REST design, JPA/Hibernate, Bean Validation, global exception handling, unit testing, and API documentation.
+A production-style REST API built with Java 17, Spring Boot 3, and MySQL. Demonstrates layered architecture, REST design, JPA/Hibernate, Bean Validation, global exception handling, unit testing, and Dockerized deployment with Docker Compose.
 
 ---
 
@@ -73,6 +73,7 @@ flowchart TD
 | Testing | JUnit 5 + Mockito + MockMvc |
 | Documentation | SpringDoc OpenAPI 3 (Swagger UI) |
 | Connection Pool | HikariCP |
+| Containerization | Docker + Docker Compose |
 
 ---
 
@@ -296,8 +297,9 @@ Content-Type: application/json
 - Java 17+
 - Maven 3.8+
 - MySQL 8+
+- Docker + Docker Compose (for containerized deployment)
 
-### Setup
+### Setup (Traditional)
 
 **1. Clone the repository**
 ```bash
@@ -346,6 +348,135 @@ Started EmployeeManagementApplication in X.XXX seconds
 
 ---
 
+## Docker Setup
+
+### Build Docker Image
+
+**Build the Docker image locally:**
+```bash
+docker build -t employee-management-system:latest .
+```
+
+**View the built image:**
+```bash
+docker images | grep employee-management-system
+```
+
+### Run with Docker Compose (Recommended)
+
+**1. Start services with Docker Compose:**
+```bash
+docker-compose up -d
+```
+
+This command:
+- Creates and starts both the MySQL database and Spring Boot application containers
+- Automatically initializes the database schema
+- Exposes the API on `http://localhost:8080`
+- Mounts MySQL data in a named volume `employee_db_data` for persistence
+
+**2. View running containers:**
+```bash
+docker-compose ps
+```
+
+**3. View application logs:**
+```bash
+docker-compose logs -f app
+```
+
+**4. View database logs:**
+```bash
+docker-compose logs -f db
+```
+
+**5. Access the application:**
+- API: `http://localhost:8080/api/employees`
+- Swagger UI: `http://localhost:8080/swagger-ui/index.html`
+
+**6. Stop all services:**
+```bash
+docker-compose down
+```
+
+**7. Stop services and remove volumes (reset everything):**
+```bash
+docker-compose down -v
+```
+
+### Run with Docker Only
+
+**Run the application container (requires external MySQL):**
+```bash
+docker run -p 8080:8080 \
+  -e DB_URL=jdbc:mysql://host.docker.internal:3306/employee_db \
+  -e DB_USERNAME=root \
+  -e DB_PASSWORD=your_password \
+  employee-management-system:latest
+```
+
+### Docker Compose Configuration
+
+The `docker-compose.yml` includes:
+
+**App Service:**
+- Image: `employee-management-system:latest`
+- Port: `8080:8080`
+- Depends on: `db`
+- Environment variables for database connection
+- Automatic health check (every 10 seconds)
+
+**Database Service:**
+- Image: `mysql:8.0`
+- Port: `3306:3306`
+- Root password: `root_password` (change in production)
+- Automatic database creation: `employee_db`
+- Data persistence: Named volume `employee_db_data`
+
+### Dockerfile Details
+
+The `Dockerfile`:
+- **Base Image:** `openjdk:17-jdk-slim` (lightweight, production-ready)
+- **Build Stage:** Multi-stage build to keep image size small (~200MB)
+- **Build Process:** Maven compiles and packages the application as a JAR
+- **Runtime:** JAR runs as the main process in the container
+
+### Docker Best Practices Used
+
+- ✅ **Multi-stage build** — reduces final image size
+- ✅ **Health checks** — enables Docker to monitor container health
+- ✅ **Named volumes** — persists MySQL data across container restarts
+- ✅ **Environment variables** — externalize configuration for different environments
+- ✅ **Service dependencies** — ensures database starts before application
+- ✅ **Logging** — application logs visible via `docker-compose logs`
+- ✅ **Non-root user** (production recommendation) — improves security
+
+### Troubleshooting Docker Issues
+
+**Container won't start:**
+```bash
+docker-compose logs app
+```
+
+**Database connection refused:**
+- Ensure `db` container is healthy: `docker-compose ps`
+- Check database logs: `docker-compose logs db`
+- Wait 10-15 seconds for MySQL to fully initialize on first run
+
+**Port already in use:**
+```bash
+# Use different ports in docker-compose.yml or:
+docker-compose -p unique_name up
+```
+
+**Clean up all Docker artifacts:**
+```bash
+docker-compose down -v
+docker image rm employee-management-system:latest
+```
+
+---
+
 ## Running Tests
 
 ```bash
@@ -370,9 +501,11 @@ Tests run: 23, Failures: 0, Errors: 0, Skipped: 0
 
 | Variable | Description | Default |
 |---|---|---|
-| `DB_URL` | Full JDBC connection URL | `jdbc:mysql://localhost:3306/employee_db...` |
+| `DB_URL` | Full JDBC connection URL | `jdbc:mysql://db:3306/employee_db...` |
 | `DB_USERNAME` | MySQL username | `root` |
 | `DB_PASSWORD` | MySQL password | *(must be set)* |
+| `SPRING_JPA_HIBERNATE_DDL_AUTO` | Hibernate DDL strategy | `update` |
+| `SERVER_PORT` | Spring Boot server port | `8080` |
 
 ---
 
@@ -406,19 +539,24 @@ Hibernate skips dirty checking for read-only transactions, improving performance
 **Why `existsByEmailAndIdNot` for updates?**
 `existsByEmail` alone would block an employee from keeping their own email during an update. The `AndIdNot` clause excludes the current employee from the uniqueness check.
 
+**Why Docker + Docker Compose?**
+Containerization ensures consistent environments across development, testing, and production. Docker Compose orchestrates multi-container applications with a single command, eliminating "works on my machine" problems.
+
 ---
 
 ## Future Improvements
 
+- [x] Docker + Docker Compose for containerized deployment
 - [ ] Pagination and sorting on `GET /api/employees` using `Pageable`
 - [ ] Spring Security with JWT authentication
 - [ ] Department entity with `@ManyToOne` relationship
 - [ ] Flyway for database migration management
-- [ ] Docker + Docker Compose for containerized deployment
-- [ ] GitHub Actions CI/CD pipeline
+- [ ] GitHub Actions CI/CD pipeline with Docker image registry
 - [ ] Integration tests with `@SpringBootTest` and Testcontainers
 - [ ] Caching with Spring Cache + Redis
 - [ ] Actuator endpoints for health monitoring
+- [ ] Kubernetes deployment manifests (YAML)
+- [ ] Multi-environment configurations (dev, staging, prod)
 
 ---
 
@@ -439,6 +577,11 @@ Hibernate skips dirty checking for read-only transactions, improving performance
 13. Why is `Optional` used as a return type in repository methods?
 14. What is the difference between `PUT` and `PATCH`?
 15. How does `@WebMvcTest` differ from `@SpringBootTest`?
+16. What is Docker and why is it useful for Java applications?
+17. Explain multi-stage builds in Docker — why do we use them?
+18. How does Docker Compose help in managing multi-container applications?
+19. What are the benefits of using health checks in Docker containers?
+20. How would you deploy this application to a cloud provider like AWS or GCP?
 
 ---
 
@@ -451,3 +594,5 @@ Hibernate skips dirty checking for read-only transactions, improving performance
 - Designed a DTO pattern separating API contracts from JPA entities, preventing internal data exposure and enabling independent evolution of layers
 - Documented all REST endpoints using SpringDoc OpenAPI 3 (Swagger UI), enabling interactive API testing without Postman
 - Used Spring Data JPA derived queries and custom JPQL for employee search and department filtering, eliminating boilerplate SQL
+- Containerized the application with Docker and orchestrated services (Spring Boot + MySQL) using Docker Compose, enabling consistent deployment across environments
+- Implemented multi-stage Docker builds to optimize image size and applied best practices including health checks, named volumes, and environment variable configuration
